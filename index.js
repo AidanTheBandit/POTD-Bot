@@ -41,7 +41,7 @@ const checkNasa = async () => {
         fs.appendFileSync('bot.log', `${getCurrentTimestamp()} - NASA image updated. New URL: ${nasaIMG}\n`);
         previouseNasa = nasaIMG;
 
-        //await axios.post('https://barkle.chat/api/drive/files/upload-from-url', {url: nasaIMG, force: true,}, {headers:{Authorization: bAPI,}})
+        await axios.post('https://barkle.chat/api/drive/files/upload-from-url', {url: nasaIMG, force: true,}, {headers:{Authorization: bAPI,}})
 
         try {
           const driveResponse = await axios.post('https://barkle.chat/api/drive/files/upload-from-url', {
@@ -52,7 +52,9 @@ const checkNasa = async () => {
               Authorization: 'Bearer BARKLE_API_KEY',
             },
           });
-          
+          if (driveResponse.status === 200 || driveResponse.status === 204){
+            await axios.post('https://barkle.chat/api/drive/files', {limit: 1}, {headers:{Authorization: bAPI}})
+          }
 
           if (driveResponse.status === 204) {
             const driveFiles = await axios.post('https://barkle.chat/api/drive/files', {limit: 1,}, {headers:{Authorization: bAPI,}})
