@@ -5,7 +5,7 @@ const fs = require('fs');
 
 let previouseNasa = 'DATE';
 const bAPI = "Bearer BARKLE_API_KEY";
-const nAPI= "NASA_API_KEY";
+const nAPI = "NASA API KEY";
 
 console.log('Bot started');
 
@@ -33,15 +33,14 @@ const checkNasa = async () => {
 
     if (response.data.media_type === 'image') {
       const nasaIMG = response.data.hdurl;
-      const nasaTitle = response.data.title; 
+      const nasaTitle = response.data.title;
       const nasaDescription = response.data.explanation;
+      const nasaCopyright = response.data.copyright;
 
       if (previouseNasa !== nasaIMG) {
         logWithTimestamp(`NASA image updated. New URL: ${nasaIMG}`);
         fs.appendFileSync('bot.log', `${getCurrentTimestamp()} - NASA image updated. New URL: ${nasaIMG}\n`);
         previouseNasa = nasaIMG;
-
-        await axios.post('https://barkle.chat/api/drive/files/upload-from-url', {url: nasaIMG, force: true,}, {headers:{Authorization: bAPI,}})
 
         try {
           const driveResponse = await axios.post('https://barkle.chat/api/drive/files/upload-from-url', {
@@ -52,20 +51,25 @@ const checkNasa = async () => {
               Authorization: 'Bearer BARKLE_API_KEY',
             },
           });
-          if (driveResponse.status === 200 || driveResponse.status === 204){
-            await axios.post('https://barkle.chat/api/drive/files', {limit: 1}, {headers:{Authorization: bAPI}})
-          }
 
           if (driveResponse.status === 204) {
-            const driveFiles = await axios.post('https://barkle.chat/api/drive/files', {limit: 1,}, {headers:{Authorization: bAPI,}})
+            setTimeout(async () => {
+              const driveFiles = await axios.post('https://barkle.chat/api/drive/files', {
+                limit: 1,
+              }, {
+                headers: {
+                  Authorization: bAPI,
+                },
+              });
 
-            if (driveFiles.status === 200) {
-              const fileIds = [driveFiles.data[0].id];
-              await postUpdate(`The NASA astronomy picture of the day is in!\n**${nasaTitle}**\n\n${nasaDescription}`, fileIds);
-            } else {
-              logWithTimestamp("No files found in the drive.");
-              fs.appendFileSync('bot.log', `${getCurrentTimestamp()} - No files found in the drive\n`);
-            }
+              if (driveFiles.status === 200) {
+                const fileIds = [driveFiles.data[0].id];
+                await postUpdate(`The NASA astronomy picture of the day is in!\n**${nasaTitle}**\n\n${nasaDescription}\n\nCopyright: ${nasaCopyright}`, fileIds);
+              } else {
+                logWithTimestamp("No files found in the drive.");
+                fs.appendFileSync('bot.log', `${getCurrentTimestamp()} - No files found in the drive\n`);
+              }
+            }, 60000); // Wait for 1 minute before checking the drive
           } else {
             throw new Error(`Error uploading image to drive 2. Status code: ${driveResponse.status}`);
           }
@@ -103,7 +107,6 @@ const postUpdate = async (message, fileIds) => {
 
     const response = await axios.post('https://barkle.chat/api/notes/create', {
       text: message,
-      //visibility: 'public',
       fileIds: fileIds,
     }, {
       headers: {
@@ -134,30 +137,27 @@ const runScheduledJob = () => {
     db = JSON.parse(fs.readFileSync('db.json'));
   }
   previouseNasa = db.lastNasa || 'Input';
-  schedule.scheduleJob('0 */4 * * *', checkNasa);
+  schedule.scheduleJob('*/20 * * * *', checkNasa);
   const nextRunTime = schedule.scheduledJobs[Object.keys(schedule.scheduledJobs)[0]].nextInvocation();
   logWithTimestamp(`Next scheduled run time: ${nextRunTime}`);
 };
 
-// Function to trigger checkNasa manually when 'T' is pressed
 const triggerManualCheck = () => {
   logWithTimestamp('Manual trigger activated...');
   checkNasa();
 };
 
-// Listen for keyboard input
 readline.emitKeypressEvents(process.stdin);
 process.stdin.setRawMode(true);
 process.stdin.on('keypress', (str, key) => {
   if (key.name === 't' && key.ctrl === false) {
-    triggerManualCheck(); // Trigger checkNasa when 'T' is pressed
+    triggerManualCheck();
   }
   if (key.name === 'c' && key.ctrl) {
     process.exit();
   }
 });
 
-// Start the scheduled job or manual trigger based on command line arguments
 const trigger = process.argv.includes('--trigger');
 if (trigger) {
   triggerManualCheck();
